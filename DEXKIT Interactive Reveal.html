@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEXKIT | Assistive Robotics Initiative</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@100;300;400&family=Space+Grotesk:wght@300;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg: #06090E;
+            --surface: #0C121C;
+            --text-primary: #F8FAFC;
+            --text-muted: #94A3B8;
+            --text-dim: #475569;
+            --cyan: #00E5FF;
+            --blue: #2979FF;
+            --purple: #8B5CF6;
+            --amber: #F59E0B;
+            --green: #10B981;
+            
+            --font-head: 'Space Grotesk', sans-serif;
+            --font-ui: 'Inter', sans-serif;
+            --font-tech: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            /* Disable user select for app-like feel */
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-primary);
+            font-family: var(--font-ui);
+            overflow-x: hidden;
+            overscroll-behavior: none;
+            -webkit-font-smoothing: antialiased;
+            cursor: none; /* Custom cursor */
+        }
+
+        /* Touch devices fallback */
+        @media (hover: none) and (pointer: coarse) {
+            body { cursor: auto; }
+            .custom-cursor { display: none !important; }
+        }
+
+        /* typography basics */
+        h1, h2, h3 { font-family: var(--font-head); }
+        .tech-text { font-family: var(--font-tech); text-transform: uppercase; letter-spacing: 0.1em; }
+        .glitch { position: relative; }
+
+        /* Scroll architecture */
+        .scroll-container {
+            height: 800vh; /* Timeline length */
+            position: relative;
+        }
+
+        .sticky-viewport {
+            position: sticky;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Environment / Background */
+        .environment {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            background: 
+                radial-gradient(circle at 50% 50%, rgba(12, 18, 28, 0) 0%, var(--bg) 100%),
+                linear-gradient(rgba(0, 229, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 229, 255, 0.03) 1px, transparent 1px);
+            background-size: 100% 100%, 100px 100px, 100px 100px;
+            background-position: center;
+        }
+
+        .scanlines {
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 229, 255, 0.02) 3px,
+                transparent 4px
+            );
+            animation: scan 10s linear infinite;
+            z-index: 1;
+            pointer-events: none;
+        }
+        @keyframes scan { from { background-position: 0 0; } to { background-position: 0 -100vh; } }
+
+        .coord-display {
+            position: absolute;
+            bottom: 2rem;
+            right: 2rem;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            text-align: right;
+            z-index: 10;
+        }
+
+        /* HUD */
+        .hud-header {
+            position: absolute;
+            top: 2rem;
+            left: 2rem;
+            right: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        .hud-brand {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .hud-brand h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .badge {
+            font-size: 0.65rem;
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            color: var(--text-muted);
+            background: rgba(12,18,28,0.5);
+            backdrop-filter: blur(4px);
+        }
+
+        .audio-toggle {
+            pointer-events: auto;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: color 0.3s;
+        }
+        .audio-toggle:hover { color: var(--cyan); }
+        .audio-indicator { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); transition: 0.3s;}
+        .audio-toggle.active .audio-indicator { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+
+        /* Progress Rail */
+        .progress-rail {
+            position: absolute;
+            right: 2rem;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            z-index: 100;
+        }
+        .rail-node {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            opacity: 0.3;
+            transition: opacity 0.3s, transform 0.3s;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+        .rail-node.active { opacity: 1; transform: translateX(-5px); }
+        .rail-num { font-size: 0.7rem; color: var(--text-muted); }
+        .rail-node.active .rail-num { color: var(--cyan); }
+        .rail-line { width: 2px; height: 20px; background: var(--text-dim); transition: 0.3s; }
+        .rail-node.active .rail-line { height: 40px; background: var(--cyan); box-shadow: 0 0 10px rgba(0,229,255,0.5); }
+        .rail-node:hover { opacity: 0.8; }
+
+        /* 3D Stage */
+        .stage-3d {
+            width: 100%;
+            height: 100%;
+            perspective: 1600px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .robot-assembly {
+            position: relative;
+            width: 600px;
+            height: 600px;
+            transform-style: preserve-3d;
+            /* Initial isometric-ish angle, will be overridden by JS */
+            transform: rotateX(15deg) rotateY(-25deg);
+            will-change: transform;
+        }
+
+        .robot-layer {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transform-style: preserve-3d;
+            will-change: transform, opacity;
+        }
+
+        .robot-layer svg, .robot-layer img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            filter: drop-shadow(0 20px 30px rgba(0,0,0,0.5));
+        }
+
+        /* UI Overlays */
+        .ui-layer {
+            position: absolute;
+            inset: 0;
+            z-index: 20;
+            pointer-events: none;
+        }
+
+        .act-content {
+            position: absolute;
+            inset: 0;
+            padding: 4rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            opacity: 0;
+            will-change: opacity, transform;
+        }
+
+        /* Act Specific Styles */
+        .hero-title { font-size: 4vw; font-weight: 300; line-height: 1.1; margin-bottom: 2rem;}
+        .hero-stats { display: flex; gap: 2rem; margin-top: 2rem; }
+        .stat-item { border-left: 1px solid var(--text-dim); padding-left: 1rem; }
+        .stat-val { color: var(--cyan); font-size: 1.2rem; margin-bottom: 0.2rem; }
+        .stat-label { font-size: 0.65rem; color: var(--text-muted); }
+
+        .telemetry-node {
+            position: absolute;
+            background: rgba(12,18,28,0.7);
+            border: 1px solid rgba(0,229,255,0.2);
+            backdrop-filter: blur(8px);
+            padding: 0.75rem 1rem;
+            border-radius: 4px;
+            opacity: 0;
+            transform: scale(0.9);
+            will-change: opacity, transform;
+        }
+        .telemetry-node::before {
+            content: ''; position: absolute; top: 50%; left: -5px; width: 4px; height: 4px; background: var(--cyan); border-radius: 50%; transform: translateY(-50%);
+        }
+        .tel-title { color: var(--cyan); font-size: 0.8rem; margin-bottom: 0.2rem; }
+        .tel-sub { font-size: 0.65rem; color: var(--text-muted); }
+        
+        .leader-lines { position: absolute; inset: 0; pointer-events: none; z-index: 15; }
+        .leader-lines path { stroke: rgba(0,229,255,0.4); stroke-width: 1; fill: none; transition: stroke-dashoffset 0.1s; }
+
+        .act-center { align-items: center; text-align: center; justify-content: center; }
+        .impact-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2rem; width: 80%; margin-top: 4rem; }
+        .arm-silhouette { height: 150px; border-bottom: 1px solid var(--text-dim); position: relative; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 1rem;}
+        .arm-silhouette::after { content:''; position: absolute; bottom:-3px; left:50%; transform:translateX(-50%); width:5px; height:5px; border-radius:50%; }
+        .arm-01::after { background: var(--cyan); } .arm-02::after, .arm-03::after { background: var(--blue); } .arm-04::after { background: var(--amber); }
+        .arm-label { font-size: 0.6rem; color: var(--text-muted); position: absolute; bottom: -2rem; width: 100%; text-align: center; }
+        
+        .lineage-flow { display: flex; flex-direction: column; align-items: center; gap: 1.5rem; margin-top: 2rem; }
+        .flow-node { padding: 1rem 2rem; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; font-size: 0.8rem; background: rgba(255,255,255,0.02); }
+        .flow-arrow { width: 1px; height: 20px; background: var(--text-dim); }
+
+        .team-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2rem; margin-top: 4rem; }
+        .team-member .name { font-size: 1rem; color: var(--text-primary); margin-bottom: 0.2rem; }
+        .team-member .role { font-size: 0.7rem; color: var(--cyan); margin-bottom: 0.2rem; }
+        .team-member .sub { font-size: 0.65rem; color: var(--text-dim); }
+
+        /* Sponsor Button */
+        .sponsor-trigger {
+            position: absolute;
+            bottom: 2rem;
+            left: 2rem;
+            background: rgba(12,18,28,0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 1rem 1.5rem;
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            cursor: pointer;
+            pointer-events: auto;
+            z-index: 100;
+            transition: all 0.3s ease;
+        }
+        .sponsor-trigger:hover { border-color: var(--cyan); box-shadow: 0 0 20px rgba(0,229,255,0.1); transform: translateY(-2px); }
+        .status-dot { width: 8px; height: 8px; background: var(--green); border-radius: 50%; box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+        .trigger-text { font-size: 0.75rem; letter-spacing: 0.05em; display: flex; flex-direction: column; }
+        .trigger-text span:last-child { color: var(--cyan); font-weight: 500; }
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+
+        /* Drawer */
+        .drawer-overlay {
+            position: fixed; inset: 0; background: rgba(6,9,14,0.8); backdrop-filter: blur(5px);
+            z-index: 999; opacity: 0; pointer-events: none; transition: opacity 0.4s ease;
+        }
+        .drawer {
+            position: fixed; top: 0; right: 0; width: 100%; max-width: 500px; height: 100vh;
+            background: var(--surface); border-left: 1px solid rgba(255,255,255,0.05);
+            z-index: 1000; transform: translateX(100%); transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+            padding: 4rem 3rem; overflow-y: auto;
+        }
+        .drawer-open .drawer-overlay { opacity: 1; pointer-events: auto; }
+        .drawer-open .drawer { transform: translateX(0); }
+        .close-drawer {
+            position: absolute; top: 2rem; right: 2rem; background: none; border: none; color: var(--text-muted);
+            font-size: 1.5rem; cursor: pointer; transition: color 0.3s;
+        }
+        .close-drawer:hover { color: var(--text-primary); }
+        
+        .drawer-content h2 { font-size: 2rem; margin-bottom: 1rem; color: var(--cyan); }
+        .drawer-content p { color: var(--text-muted); font-size: 0.9rem; line-height: 1.6; margin-bottom: 2rem; }
+        .needs-list { list-style: none; margin-bottom: 3rem; }
+        .needs-list li { padding: 1rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.85rem; display: flex; align-items: center; gap: 1rem;}
+        .needs-list li::before { content: '>'; color: var(--cyan); font-family: var(--font-tech); }
+        .cta-btn {
+            display: inline-block; width: 100%; padding: 1.2rem; background: var(--text-primary); color: var(--bg);
+            text-align: center; text-decoration: none; font-weight: 500; border-radius: 4px; transition: all 0.3s;
+        }
+        .cta-btn:hover { background: var(--cyan); transform: translateY(-2px); }
+
+        /* Custom Cursor */
+        .custom-cursor {
+            position: fixed; top: 0; left: 0; pointer-events: none; z-index: 9999;
+            mix-blend-mode: difference;
+        }
+        .cursor-dot {
+            width: 4px; height: 4px; background: var(--cyan); border-radius: 50%;
+            position: absolute; transform: translate(-50%, -50%);
+        }
+        .cursor-ring {
+            width: 30px; height: 30px; border: 1px solid rgba(0,229,255,0.5); border-radius: 50%;
+            position: absolute; transform: translate(-50%, -50%); transition: width 0.2s, height 0.2s, border-color 0.2s;
+        }
+        .cursor-hover .cursor-ring { width: 50px; height: 50px; border-color: var(--cyan); background: rgba(0,229,255,0.1); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero-title { font-size: 2rem; }
+            .hero-stats { flex-direction: column; gap: 1rem; }
+            .progress-rail { display: none; }
+            .act-content { padding: 2rem; justify-content: flex-end; padding-bottom: 8rem; }
+            .robot-assembly { transform: scale(0.6) rotateX(10deg) rotateY(-15deg); }
+            .impact-grid, .team-grid { grid-template-columns: 1fr 1fr; }
+            .sponsor-trigger { bottom: 1rem; left: 1rem; padding: 0.75rem 1rem; }
+            .drawer { padding: 3rem 1.5rem; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .robot-assembly { transition: opacity 0.5s; transform: none !important; }
+            .robot-layer { transform: none !important; }
+            .scanlines { animation: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="custom-cursor">
+        <div class="cursor-dot"></div>
+        <div class="cursor-ring"></div>
+    </div>
+
+    <div class="hud-header">
+        <div class="hud-brand">
+            <h1>DEXKIT</h1>
+            <div class="badge tech-text">ASSISTIVE ROBOTICS / V1.2</div>
+        </div>
+        <button class="audio-toggle tech-text hover-target" id="audioBtn">
+            <div class="audio-indicator"></div> AUDIO OFF
+        </button>
+    </div>
+
+    <div class="progress-rail tech-text" id="rail">
+        <!-- Generated by JS -->
+    </div>
+
+    <div class="coord-display tech-text" id="coords">X 000.00 Y 000.00 Z 000.00</div>
+
+    <div class="sponsor-trigger hover-target" id="sponsorBtn">
+        <div class="status-dot"></div>
+        <div class="trigger-text">
+            <span class="tech-text">CONFERENCE SPONSORSHIP</span>
+            <span>Sponsor & Connect &rarr;</span>
+        </div>
+    </div>
+
+    <div class="drawer-overlay" id="drawerOverlay"></div>
+    <div class="drawer" id="drawer">
+        <button class="close-drawer hover-target" id="closeDrawer">&times;</button>
+        <div class="drawer-content">
+            <div class="tech-text" style="color: var(--cyan); margin-bottom: 1rem;">OCTOBER 2, 2026</div>
+            <h2>CNC Conference Partnership</h2>
+            <p>We are advancing accessible assistive manipulation through student-led robotics engineering, research translation, and community hardware distribution. Join us to scale this impact.</p>
+            
+            <div class="tech-text" style="margin-bottom: 1rem; color: var(--text-dim);">IMMEDIATE NEEDS</div>
+            <ul class="needs-list tech-text">
+                <li>Precision CNC machining</li>
+                <li>Aluminum extrusion (QueenBee specs)</li>
+                <li>Raw stock (6061-T6)</li>
+                <li>Engineering filament (PC/CF)</li>
+                <li>Hardware components & fasteners</li>
+                <li>Fabrication mentorship</li>
+            </ul>
+
+            <a href="#" id="mailtoBtn" class="cta-btn hover-target tech-text">REQUEST SPONSORSHIP PACKET &rarr;</a>
+        </div>
+    </div>
+
+    <div class="scroll-container">
+        <div class="sticky-viewport">
+            <div class="environment"></div>
+            <div class="scanlines"></div>
+
+            <div class="stage-3d">
+                <div class="robot-assembly" id="robot">
+                    <!-- Layers injected by JS based on ASSETS -->
+                </div>
+            </div>
+
+            <!-- UI Overlay for Acts -->
+            <div class="ui-layer">
+                
+                <svg class="leader-lines" id="svgLines">
+                    <!-- Paths generated by JS -->
+                </svg>
+
+                <!-- Act 01 -->
+                <div class="act-content" id="act01">
+                    <h2 class="hero-title">Assistive Robotics<br>& Hardware Initiative</h2>
+                    <p style="max-width: 500px; color: var(--text-muted); line-height: 1.6;">Repurposing Carnegie Mellon University research platforms to bring dexterous manipulation into high school classrooms and assistive therapy.</p>
+                    <div class="hero-stats">
+                        <div class="stat-item">
+                            <div class="stat-val tech-text">16 DoF</div>
+                            <div class="stat-label tech-text">Kinematic Complexity</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-val tech-text">4 Units</div>
+                            <div class="stat-label tech-text">Restored Platforms</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-val tech-text">$24.0k</div>
+                            <div class="stat-label tech-text">In-Kind Hardware</div>
+                        </div>
+                    </div>
+                    <div class="tech-text" style="position: absolute; bottom: 4rem; left: 4rem; opacity: 0.5; animation: pulse 2s infinite;">SCROLL TO DISASSEMBLE &darr;</div>
+                </div>
+
+                <!-- Act 02: Telemetry Nodes (Positions updated via CSS/JS) -->
+                <div id="act02-nodes">
+                    <div class="telemetry-node tech-text" id="node-gantry" style="top: 20%; left: 15%;">
+                        <div class="tel-title">4-DoF QUEENBEE PRO</div>
+                        <div class="tel-sub">CUSTOM Y-PLATES</div>
+                    </div>
+                    <div class="telemetry-node tech-text" id="node-core" style="top: 40%; right: 15%;">
+                        <div class="tel-title">12x HLS3620 SERVO CORE</div>
+                        <div class="tel-sub">1.0 Mbps SERIAL BUS</div>
+                    </div>
+                    <div class="telemetry-node tech-text" id="node-wrist" style="top: 60%; left: 20%;">
+                        <div class="tel-title">PTFE TENDON MANIFOLD</div>
+                        <div class="tel-sub">ID 13 HLS3640 ROLL</div>
+                    </div>
+                    <div class="telemetry-node tech-text" id="node-hand" style="top: 75%; right: 25%;">
+                        <div class="tel-title">FLEXFOAM-iT! X</div>
+                        <div class="tel-sub">12 ANATOMICAL TENDONS</div>
+                    </div>
+                </div>
+
+                <!-- Act 03 -->
+                <div class="act-content act-center" id="act03">
+                    <div class="badge tech-text" style="margin-bottom: 1rem;">PERCEPTION LAYER</div>
+                    <h2 class="hero-title" style="font-size: 3vw;">CLOSING THE LOOP</h2>
+                    <p style="max-width: 600px; color: var(--text-muted); line-height: 1.6; margin: 0 auto;">Translating real-time vision into physical ASL fingerspelling gestures.</p>
+                    <div class="hero-stats" style="justify-content: center; margin-top: 3rem;">
+                        <div class="stat-item"><div class="stat-val tech-text">21</div><div class="stat-label tech-text">3D Landmarks</div></div>
+                        <div class="stat-item"><div class="stat-val tech-text">30+ FPS</div><div class="stat-label tech-text">Vision Pipeline</div></div>
+                        <div class="stat-item"><div class="stat-val tech-text">&lt;15ms</div><div class="stat-label tech-text">Kinematic Retargeting</div></div>
+                    </div>
+                </div>
+
+                <!-- Act 04 -->
+                <div class="act-content act-center" id="act04">
+                    <div class="badge tech-text" style="margin-bottom: 1rem;">RESOURCE ALLOCATION</div>
+                    <div style="font-size: 4rem; color: var(--cyan); font-family: var(--font-tech); line-height: 1;">$24,000+</div>
+                    <div class="tech-text" style="letter-spacing: 0.2em; margin-bottom: 1rem;">TOTAL IN-KIND HARDWARE</div>
+                    <p style="max-width: 500px; color: var(--text-muted); margin: 0 auto; font-size: 0.9rem;">Salvaged, restored, and redirected into student robotics, assistive research, and community outreach.</p>
+                    
+                    <div class="impact-grid">
+                        <div>
+                            <div class="arm-silhouette arm-01">
+                                <!-- simple abstract arm svg representation -->
+                                <svg width="40" height="100" viewBox="0 0 40 100"><path d="M20,100 L20,60 L35,30 L30,10" stroke="var(--cyan)" stroke-width="2" fill="none" opacity="0.7"/></svg>
+                            </div>
+                            <div class="arm-label">FLAGSHIP ASL<br>ASSISTIVE UNIT</div>
+                        </div>
+                        <div>
+                            <div class="arm-silhouette arm-02">
+                                <svg width="40" height="100" viewBox="0 0 40 100"><path d="M20,100 L20,70 L10,40 L15,15" stroke="var(--blue)" stroke-width="2" fill="none" opacity="0.5"/></svg>
+                            </div>
+                            <div class="arm-label">WAKELAND<br>ROBOTICS</div>
+                        </div>
+                        <div>
+                            <div class="arm-silhouette arm-03">
+                                <svg width="40" height="100" viewBox="0 0 40 100"><path d="M20,100 L20,50 L30,20 L25,5" stroke="var(--blue)" stroke-width="2" fill="none" opacity="0.5"/></svg>
+                            </div>
+                            <div class="arm-label">WAKELAND<br>ROBOTICS</div>
+                        </div>
+                        <div>
+                            <div class="arm-silhouette arm-04">
+                                <svg width="40" height="100" viewBox="0 0 40 100"><path d="M20,100 L20,80 L25,50 L10,20" stroke="var(--amber)" stroke-width="2" fill="none" opacity="0.5"/></svg>
+                            </div>
+                            <div class="arm-label">COMMUNITY /<br>CLINICAL RESERVE</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Act 05 -->
+                <div class="act-content act-center" id="act05">
+                    <h2 class="hero-title" style="font-size: 2vw; margin-bottom: 0;">ACADEMIC LINEAGE</h2>
+                    <div class="lineage-flow tech-text">
+                        <div class="flow-node">CARNEGIE MELLON UNIV. (King, Ahluwalia)</div>
+                        <div class="flow-arrow"></div>
+                        <div class="flow-node">DEXKIT RESEARCH PLATFORM</div>
+                        <div class="flow-arrow"></div>
+                        <div class="flow-node" style="color: var(--cyan); border-color: rgba(0,229,255,0.3);">STUDENT ENGINEERING REBUILD</div>
+                        <div class="flow-arrow"></div>
+                        <div class="flow-node">ASSISTIVE APPLICATION (ASL)</div>
+                        <div class="flow-arrow"></div>
+                        <div class="flow-node">SAFE ROBOTICS LAB (Dr. Kousik, GT) Advisory</div>
+                    </div>
+                </div>
+
+                <!-- Act 06 -->
+                <div class="act-content act-center" id="act06">
+                    <div class="badge tech-text" style="margin-bottom: 2rem;">PROJECT TEAM</div>
+                    <div class="team-grid">
+                        <div class="team-member">
+                            <div class="name">SAMARTH</div><div class="role tech-text">PROJECT LEAD</div><div class="sub">ML / Controls</div>
+                        </div>
+                        <div class="team-member">
+                            <div class="name">ANISH</div><div class="role tech-text">MECHANICAL</div><div class="sub">Gantry / Machining</div>
+                        </div>
+                        <div class="team-member">
+                            <div class="name">OSCAR</div><div class="role tech-text">ELECTRONICS</div><div class="sub">Power / Comms</div>
+                        </div>
+                        <div class="team-member">
+                            <div class="name">HARNOOR</div><div class="role tech-text">ADVISOR</div><div class="sub">DexKit Lineage</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 4rem; padding-top: 2rem; border-top: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; align-items: center; gap: 1rem;">
+                        <div class="tech-text" style="color: var(--cyan);">OCTOBER 2, 2026 &mdash; CNC MACHINING CONFERENCE</div>
+                        <p style="color: var(--text-muted); font-size: 0.9rem;">Seeking machining support, raw stock, and technical collaborators.</p>
+                        <button class="cta-btn tech-text hover-target" style="width: auto; padding: 1rem 2rem; margin-top: 1rem;" onclick="document.getElementById('sponsorBtn').click()">VIEW SPONSORSHIP PACKET</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        // Replace empty strings with actual image paths (e.g., 'assets/layer1.png')
+        // If empty, the system falls back to generated engineering SVGs.
+        const ASSETS = {
+            gantry: "",
+            forearm: "",
+            motors: "",
+            wrist: "",
+            tendons: "",
+            hand: "",
+            perception: ""
+        };
+
+        const CONTACT_EMAIL = "sponsor@dexkit-project.edu"; // Change this
+
+        const TIMELINE = {
+            act1: { start: 0.0, end: 0.12 },
+            explosion: { start: 0.15, end: 0.45 },
+            act2Nodes: { start: 0.25, end: 0.48 },
+            act3: { start: 0.48, end: 0.62 },
+            act4: { start: 0.65, end: 0.80 },
+            act5: { start: 0.82, end: 0.91 },
+            act6: { start: 0.92, end: 1.0 }
+        };
+
+        const STAGES = ["ASSEMBLY", "DISASSEMBLY", "TELEMETRY", "PERCEPTION", "IMPACT", "LINEAGE", "CONFERENCE"];
+
+        // --- MATH UTILITIES ---
+        const lerp = (start, end, t) => start * (1 - t) + end * t;
+        const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
+        const mapRange = (val, inMin, inMax, outMin, outMax) => {
+            return outMin + (outMax - outMin) * clamp((val - inMin) / (inMax - inMin), 0, 1);
+        };
+        const smoothstep = (min, max, value) => {
+            let x = clamp((value - min) / (max - min), 0.0, 1.0);
+            return x * x * (3 - 2 * x);
+        };
+
+        // --- STATE ---
+        let state = {
+            scrollY: 0,
+            targetScrollY: 0,
+            progress: 0,
+            width: window.innerWidth,
+            height: window.innerHeight,
+            isMobile: window.innerWidth < 768,
+            audioEnabled: false,
+            audioCtx: null,
+            lastTickTime: 0
+        };
+
+        // Generated engineering-style SVGs as placeholders
+        const SVGS = {
+            gantry: `<svg viewBox="0 0 500 500" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5">
+                <!-- Base plates -->
+                <rect x="50" y="400" width="400" height="20" fill="rgba(12,18,28,0.8)" stroke="rgba(255,255,255,0.6)"/>
+                <rect x="100" y="380" width="300" height="20" fill="rgba(25,35,50,0.8)"/>
+                <!-- Vertical Extrusions -->
+                <rect x="120" y="100" width="30" height="280" fill="rgba(15,20,30,0.9)" stroke-dasharray="4 2"/>
+                <rect x="350" y="100" width="30" height="280" fill="rgba(15,20,30,0.9)" stroke-dasharray="4 2"/>
+                <!-- Cross beam -->
+                <rect x="90" y="80" width="320" height="40" fill="rgba(20,30,45,0.9)" stroke="var(--text-muted)"/>
+                <!-- Y-Plates -->
+                <polygon points="100,120 160,120 150,180 110,180" fill="rgba(41,121,255,0.2)" stroke="var(--blue)"/>
+                <polygon points="340,120 400,120 390,180 350,180" fill="rgba(41,121,255,0.2)" stroke="var(--blue)"/>
+                <!-- Grid details -->
+                <path d="M135,100 v280 M365,100 v280 M90,100 h320 M90,110 h320" stroke="rgba(255,255,255,0.1)"/>
+            </svg>`,
+            forearm: `<svg viewBox="0 0 500 500" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1">
+                <!-- Tapered housing -->
+                <path d="M180,200 L320,200 L300,380 L200,380 Z" fill="rgba(20,25,35,0.95)" stroke="var(--text-muted)"/>
+                <!-- Inner cutouts -->
+                <rect x="220" y="220" width="60" height="140" rx="5" fill="var(--bg)" stroke="rgba(0,229,255,0.3)"/>
+                <circle cx="250" cy="210" r="15" fill="rgba(12,18,28,1)" stroke="var(--text-dim)"/>
+                <path d="M190,250 h120 M195,300 h110 M200,350 h100" stroke-dasharray="2 4"/>
+            </svg>`,
+            motors: `<svg viewBox="0 0 500 500" fill="none" stroke="var(--cyan)" stroke-width="1.5">
+                <g transform="translate(200, 220)">
+                    <!-- Servo grid 3x4 -->
+                    ${Array.from({length: 12}).map((_, i) => {
+                        let x = (i % 3) * 35;
+                        let y = Math.floor(i / 3) * 45;
+                        return `<rect x="${x}" y="${y}" width="25" height="35" rx="2" fill="rgba(0,229,255,0.05)"/>
+                                <circle cx="${x+12.5}" cy="${y+10}" r="6" fill="rgba(0,229,255,0.2)"/>
+                                <line x1="${x+12.5}" y1="${y+10}" x2="${x+12.5}" y2="${y+5}" stroke="var(--cyan)"/>`;
+                    }).join('')}
+                    <!-- Bus cable -->
+                    <path d="M-10,0 v180 h120 v-180" stroke="var(--amber)" stroke-dasharray="5 5" fill="none"/>
+                </g>
+            </svg>`,
+            wrist: `<svg viewBox="0 0 500 500" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1">
+                <g transform="translate(250, 390)">
+                    <rect x="-40" y="0" width="80" height="30" rx="5" fill="rgba(30,40,50,0.9)"/>
+                    <circle cx="-30" cy="15" r="5" fill="var(--bg)"/>
+                    <circle cx="30" cy="15" r="5" fill="var(--bg)"/>
+                    <!-- Manifold holes -->
+                    ${Array.from({length: 6}).map((_, i) => `<circle cx="${-25 + i*10}" cy="5" r="2" fill="var(--text-muted)"/>`).join('')}
+                    ${Array.from({length: 6}).map((_, i) => `<circle cx="${-25 + i*10}" cy="25" r="2" fill="var(--text-muted)"/>`).join('')}
+                </g>
+            </svg>`,
+            tendons: `<svg viewBox="0 0 500 500" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1">
+                <!-- Routing lines from motors to wrist -->
+                ${Array.from({length: 12}).map((_, i) => {
+                    let startX = 212.5 + (i % 3) * 35;
+                    let startY = 250 + Math.floor(i / 3) * 45;
+                    let endX = 225 + (i%6)*10;
+                    return `<path d="M${startX},${startY} C${startX},350 ${endX},350 ${endX},395" stroke-dasharray="2 2" stroke="rgba(255,255,255,0.4)"/>`;
+                }).join('')}
+            </svg>`,
+            hand: `<svg viewBox="0 0 500 500" fill="none" stroke="var(--text-primary)" stroke-width="1.5">
+                <g transform="translate(250, 420)">
+                    <!-- Palm -->
+                    <path d="M-30,0 C-40,40 40,40 30,0 Z" fill="rgba(255,255,255,0.1)"/>
+                    <!-- Fingers (Thumb, Index, Middle, Ring, Pinky) -->
+                    <path d="M-25,10 Q-50,30 -40,60" stroke-linecap="round"/>
+                    <path d="M-15,35 Q-20,70 -15,100" stroke-linecap="round"/>
+                    <path d="M0,40 Q0,80 5,110" stroke-linecap="round"/>
+                    <path d="M15,35 Q20,70 25,95" stroke-linecap="round"/>
+                    <path d="M25,20 Q40,50 40,70" stroke-linecap="round"/>
+                    <!-- Joints -->
+                    <circle cx="-32" cy="35" r="3" fill="var(--bg)"/><circle cx="-42" cy="55" r="2" fill="var(--bg)"/>
+                    <circle cx="-17" cy="65" r="3" fill="var(--bg)"/><circle cx="-16" cy="95" r="2" fill="var(--bg)"/>
+                    <circle cx="0" cy="75" r="3" fill="var(--bg)"/><circle cx="4" cy="105" r="2" fill="var(--bg)"/>
+                    <circle cx="17" cy="65" r="3" fill="var(--bg)"/><circle cx="24" cy="90" r="2" fill="var(--bg)"/>
+                    <circle cx="32" cy="45" r="3" fill="var(--bg)"/><circle cx="39" cy="65" r="2" fill="var(--bg)"/>
+                </g>
+            </svg>`,
+            perception: `<svg viewBox="0 0 500 500" fill="none">
+                <g transform="translate(250, 420)" opacity="0" id="cv-hand">
+                    <!-- MediaPipe style skeleton -->
+                    <path d="M-30,0 L-25,10 L-32,35 L-42,55" stroke="var(--green)" stroke-width="1" stroke-dasharray="4 4"/>
+                    <path d="M-30,0 L-15,35 L-17,65 L-16,95" stroke="var(--green)" stroke-width="1" stroke-dasharray="4 4"/>
+                    <path d="M-30,0 L0,40 L0,75 L4,105" stroke="var(--green)" stroke-width="1" stroke-dasharray="4 4"/>
+                    <path d="M-30,0 L15,35 L17,65 L24,90" stroke="var(--green)" stroke-width="1" stroke-dasharray="4 4"/>
+                    <path d="M-30,0 L25,20 L32,45 L39,65" stroke="var(--green)" stroke-width="1" stroke-dasharray="4 4"/>
+                    <!-- Points -->
+                    ${[
+                        [-30,0], [-25,10], [-32,35], [-42,55],
+                        [-15,35], [-17,65], [-16,95],
+                        [0,40], [0,75], [4,105],
+                        [15,35], [17,65], [24,90],
+                        [25,20], [32,45], [39,65]
+                    ].map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="2" fill="var(--green)"/>`).join('')}
+                    <!-- Connection Arcs (animated later) -->
+                    <path id="kinematic-arc" d="M-50,150 Q0,200 0,75" stroke="var(--cyan)" stroke-width="1.5" fill="none" opacity="0"/>
+                </g>
+                <!-- Bounding Box -->
+                <rect x="150" y="380" width="200" height="150" fill="none" stroke="rgba(16, 185, 129, 0.2)" stroke-width="1" stroke-dasharray="10 5" id="cv-box" opacity="0"/>
+            </svg>`
+        };
+
+        function initDOM() {
+            // Setup Robot Layers
+            const container = document.getElementById('robot');
+            const layerOrder = ['gantry', 'forearm', 'motors', 'wrist', 'tendons', 'hand', 'perception'];
+            
+            layerOrder.forEach((key, index) => {
+                const div = document.createElement('div');
+                div.className = 'robot-layer';
+                div.id = `layer-${key}`;
+                // Base Z index to enforce stacking order properly in 3D
+                div.style.transform = `translateZ(${index * 5}px)`; 
+                
+                if (ASSETS[key]) {
+                    div.innerHTML = `<img src="${ASSETS[key]}" alt="${key}">`;
+                } else {
+                    div.innerHTML = SVGS[key];
+                }
+                container.appendChild(div);
+            });
+
+            // Setup Rail
+            const rail = document.getElementById('rail');
+            STAGES.forEach((stage, i) => {
+                const node = document.createElement('div');
+                node.className = 'rail-node';
+                node.innerHTML = `
+                    <div class="rail-num">0${i}</div>
+                    <div class="rail-line"></div>
+                `;
+                // Calculate rough scroll percentage for click
+                const targetPct = i === 0 ? 0 : 
+                                 i === 1 ? TIMELINE.explosion.start + 0.1 :
+                                 i === 2 ? TIMELINE.act2Nodes.start + 0.1 :
+                                 i === 3 ? TIMELINE.act3.start + 0.05 :
+                                 i === 4 ? TIMELINE.act4.start + 0.05 :
+                                 i === 5 ? TIMELINE.act5.start + 0.02 : 1;
+                
+                node.addEventListener('click', () => {
+                    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+                    window.scrollTo({ top: maxScroll * targetPct, behavior: 'smooth' });
+                });
+                rail.appendChild(node);
+            });
+
+            // Setup Mailto
+            document.getElementById('mailtoBtn').href = `mailto:${CONTACT_EMAIL}?subject=Sponsorship Inquiry - DEXKIT CNC Conference`;
+        }
+
+        function onScroll() {
+            state.targetScrollY = window.scrollY;
+        }
+
+        function onResize() {
+            state.width = window.innerWidth;
+            state.height = window.innerHeight;
+            state.isMobile = window.innerWidth < 768;
+        }
+
+        function renderLoop() {
+            // Smooth scroll interpolation
+            state.scrollY = lerp(state.scrollY, state.targetScrollY, 0.08);
+            
+            const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+            // Prevent division by zero on load
+            state.progress = maxScroll > 0 ? clamp(state.scrollY / maxScroll, 0, 1) : 0;
+
+            updateAnimations(state.progress);
+            updateUI(state.progress);
+            
+            // Subtle coordinate update
+            if(Math.abs(state.scrollY - state.targetScrollY) > 0.1) {
+                 document.getElementById('coords').innerText = `X ${(state.progress*100).toFixed(2)} Y ${(state.scrollY*0.05).toFixed(2)} Z 018.44`;
+            }
+
+            requestAnimationFrame(renderLoop);
+        }
+
+        function updateAnimations(p) {
+            const isReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            
+            // Base Camera Rotation (breathing + scroll linked)
+            const breath = Math.sin(Date.now() * 0.001) * 2;
+            
+            // Calculate base rotation based on progress
+            let rotX = 15;
+            let rotY = -25;
+            let rotZ = 0;
+
+            if (p > TIMELINE.explosion.start) {
+                // Rotate camera slightly during explosion to show depth
+                let camP = smoothstep(0, 1, mapRange(p, TIMELINE.explosion.start, TIMELINE.act4.start, 0, 1));
+                rotX = lerp(15, 5, camP);
+                rotY = lerp(-25, 0, camP); // Flatten out for later sections
+            }
+
+            const robot = document.getElementById('robot');
+            if (!isReduced) {
+                robot.style.transform = `scale(${state.isMobile ? 0.6 : 1}) rotateX(${rotX + breath*0.5}deg) rotateY(${rotY}deg) rotateZ(${rotZ}deg)`;
+            }
+
+            // Layer specific animations (The Explosion)
+            let expP = smoothstep(0, 1, mapRange(p, TIMELINE.explosion.start, TIMELINE.explosion.end, 0, 1));
+            
+            // Layers fade out towards the end to focus on data
+            let globalFade = 1 - smoothstep(0, 1, mapRange(p, TIMELINE.act4.start, TIMELINE.act4.end, 0, 1));
+
+            const getLayer = id => document.getElementById(`layer-${id}`);
+            const L = {
+                gantry: getLayer('gantry'),
+                forearm: getLayer('forearm'),
+                motors: getLayer('motors'),
+                wrist: getLayer('wrist'),
+                tendons: getLayer('tendons'),
+                hand: getLayer('hand'),
+                perception: getLayer('perception')
+            };
+
+            if (isReduced) {
+                // Simplified logic for reduced motion
+                Object.values(L).forEach(el => el.style.opacity = globalFade);
+                return;
+            }
+
+            // --- Physical Explosion Choreography ---
+            // Z goes "towards/away" from camera, Y goes up/down
+            
+            // Gantry moves back and up slightly
+            L.gantry.style.transform = `translate3d(0, ${lerp(0, -50, expP)}px, ${lerp(0, -100, expP)}px)`;
+            L.gantry.style.opacity = globalFade * lerp(1, 0.2, expP); // Diminish background frame
+
+            // Forearm shell separates up
+            L.forearm.style.transform = `translate3d(0, ${lerp(0, -80, expP)}px, ${lerp(10, 0, expP)}px)`;
+            L.forearm.style.opacity = globalFade * lerp(1, 0.4, expP);
+
+            // Motors stay somewhat central, reveal themselves
+            L.motors.style.transform = `translate3d(0, 0, ${lerp(20, 50, expP)}px)`;
+            L.motors.style.opacity = globalFade;
+
+            // Wrist moves forward
+            L.wrist.style.transform = `translate3d(0, ${lerp(0, 30, expP)}px, ${lerp(30, 120, expP)}px)`;
+            L.wrist.style.opacity = globalFade;
+
+            // Tendons stretch
+            L.tendons.style.transform = `translate3d(0, ${lerp(0, 15, expP)}px, ${lerp(25, 80, expP)}px) scaleY(${lerp(1, 1.1, expP)})`;
+            L.tendons.style.opacity = globalFade * lerp(0.5, 1, expP);
+
+            // Hand moves far forward
+            L.hand.style.transform = `translate3d(0, ${lerp(0, 50, expP)}px, ${lerp(40, 200, expP)}px)`;
+            L.hand.style.opacity = globalFade;
+
+            // Perception Layer (Act 3)
+            let cvP = smoothstep(0, 1, mapRange(p, TIMELINE.act3.start, TIMELINE.act3.end, 0, 1));
+            L.perception.style.transform = `translate3d(0, ${lerp(0, 50, expP)}px, ${lerp(45, 220, expP)}px)`;
+            L.perception.style.opacity = globalFade;
+            
+            // Internal SVG animation for perception
+            const cvHand = document.getElementById('cv-hand');
+            const cvBox = document.getElementById('cv-box');
+            if (cvHand && cvBox) {
+                cvHand.style.opacity = cvP;
+                cvBox.style.opacity = cvP * 0.5;
+            }
+        }
+
+        function updateUI(p) {
+            // Update Rail
+            const nodes = document.querySelectorAll('.rail-node');
+            let activeIdx = 0;
+            if (p > TIMELINE.act6.start) activeIdx = 6;
+            else if (p > TIMELINE.act5.start) activeIdx = 5;
+            else if (p > TIMELINE.act4.start) activeIdx = 4;
+            else if (p > TIMELINE.act3.start) activeIdx = 3;
+            else if (p > TIMELINE.act2Nodes.start) activeIdx = 2;
+            else if (p > TIMELINE.explosion.start) activeIdx = 1;
+            
+            nodes.forEach((n, i) => n.classList.toggle('active', i === activeIdx));
+
+            // Act 01 (Fades out quickly)
+            const act1 = document.getElementById('act01');
+            act1.style.opacity = 1 - smoothstep(0, 1, mapRange(p, TIMELINE.act1.start, TIMELINE.act1.end, 0, 1));
+            act1.style.transform = `translateY(${lerp(0, -50, p * 5)}px)`;
+            act1.style.pointerEvents = act1.style.opacity > 0.1 ? 'auto' : 'none';
+
+            // Act 02 Telemetry Nodes
+            const tP = smoothstep(0, 1, mapRange(p, TIMELINE.act2Nodes.start, TIMELINE.act2Nodes.end, 0, 1));
+            const tFadeOut = 1 - smoothstep(0, 1, mapRange(p, TIMELINE.act3.start, TIMELINE.act3.start + 0.1, 0, 1));
+            const activeT = tP * tFadeOut;
+
+            // Simple staggered reveal based on overall timeline
+            const nodesArr = [
+                { id: 'node-gantry', delay: 0 },
+                { id: 'node-core', delay: 0.2 },
+                { id: 'node-wrist', delay: 0.4 },
+                { id: 'node-hand', delay: 0.6 }
+            ];
+
+            // Draw SVG Lines connecting nodes to center (simulating hardware connection)
+            const svgLines = document.getElementById('svgLines');
+            let linesHTML = '';
+            const cx = window.innerWidth / 2;
+            const cy = window.innerHeight / 2;
+
+            nodesArr.forEach(n => {
+                const el = document.getElementById(n.id);
+                // Individual progress with delay
+                let localP = clamp((activeT - n.delay) / 0.4, 0, 1);
+                
+                el.style.opacity = localP;
+                el.style.transform = `scale(${lerp(0.9, 1, localP)})`;
+
+                if (localP > 0) {
+                    const rect = el.getBoundingClientRect();
+                    // Origin of line (left side of node)
+                    const x1 = rect.left;
+                    const y1 = rect.top + rect.height / 2;
+                    // Target (approximate center of screen where hardware is)
+                    // Add some offset based on which node it is to make it look technical
+                    const targetOffsetX = n.id === 'node-gantry' ? -50 : n.id === 'node-core' ? 50 : n.id === 'node-wrist' ? -30 : 80;
+                    const targetOffsetY = n.id === 'node-gantry' ? -100 : n.id === 'node-core' ? 0 : n.id === 'node-wrist' ? 50 : 100;
+                    
+                    const x2 = cx + targetOffsetX;
+                    const y2 = cy + targetOffsetY;
+
+                    // Calculate path length for animation
+                    const dist = Math.hypot(x2 - x1, y2 - y1);
+                    const drawLength = dist * localP;
+
+                    linesHTML += `<path d="M${x1},${y1} L${x2},${y1} L${x2},${y2}" stroke-dasharray="${dist}" stroke-dashoffset="${dist - drawLength}" />`;
+                }
+            });
+            svgLines.innerHTML = linesHTML;
+
+            // Act 03
+            const act3 = document.getElementById('act03');
+            const a3PIn = smoothstep(0, 1, mapRange(p, TIMELINE.act3.start, TIMELINE.act3.start + 0.05, 0, 1));
+            const a3POut = 1 - smoothstep(0, 1, mapRange(p, TIMELINE.act3.end - 0.05, TIMELINE.act3.end, 0, 1));
+            act3.style.opacity = a3PIn * a3POut;
+            act3.style.transform = `translateY(${lerp(30, 0, a3PIn)}px)`;
+
+            // Act 04
+            const act4 = document.getElementById('act04');
+            const a4PIn = smoothstep(0, 1, mapRange(p, TIMELINE.act4.start, TIMELINE.act4.start + 0.05, 0, 1));
+            const a4POut = 1 - smoothstep(0, 1, mapRange(p, TIMELINE.act4.end - 0.05, TIMELINE.act4.end, 0, 1));
+            act4.style.opacity = a4PIn * a4POut;
+            act4.style.transform = `translateY(${lerp(30, 0, a4PIn)}px) scale(${lerp(0.95, 1, a4PIn)})`;
+
+            // Act 05
+            const act5 = document.getElementById('act05');
+            const a5PIn = smoothstep(0, 1, mapRange(p, TIMELINE.act5.start, TIMELINE.act5.start + 0.05, 0, 1));
+            const a5POut = 1 - smoothstep(0, 1, mapRange(p, TIMELINE.act5.end - 0.05, TIMELINE.act5.end, 0, 1));
+            act5.style.opacity = a5PIn * a5POut;
+            act5.style.transform = `translateY(${lerp(30, 0, a5PIn)}px)`;
+
+            // Act 06
+            const act6 = document.getElementById('act06');
+            const a6PIn = smoothstep(0, 1, mapRange(p, TIMELINE.act6.start, TIMELINE.act6.start + 0.05, 0, 1));
+            act6.style.opacity = a6PIn;
+            act6.style.transform = `translateY(${lerp(30, 0, a6PIn)}px)`;
+            act6.style.pointerEvents = act6.style.opacity > 0.1 ? 'auto' : 'none';
+
+            // Mechanical scroll tick audio
+            if (state.audioEnabled && state.audioCtx) {
+                const scrollDelta = Math.abs(state.scrollY - state.lastTickTime);
+                if (scrollDelta > window.innerHeight * 0.1) {
+                    playTick();
+                    state.lastTickTime = state.scrollY;
+                }
+            }
+        }
+
+        function setupInteractions() {
+            // Audio Toggle
+            const audioBtn = document.getElementById('audioBtn');
+            audioBtn.addEventListener('click', () => {
+                state.audioEnabled = !state.audioEnabled;
+                audioBtn.classList.toggle('active', state.audioEnabled);
+                audioBtn.innerHTML = `<div class="audio-indicator"></div> AUDIO ${state.audioEnabled ? 'ON' : 'OFF'}`;
+                
+                if (state.audioEnabled && !state.audioCtx) {
+                    state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (state.audioEnabled) playTick(400); // Test sound
+            });
+
+            // Drawer Logic
+            const drawer = document.getElementById('drawer');
+            const overlay = document.getElementById('drawerOverlay');
+            const sponsorBtn = document.getElementById('sponsorBtn');
+            const closeBtn = document.getElementById('closeDrawer');
+
+            function toggleDrawer(force) {
+                const isOpen = force !== undefined ? force : !document.body.classList.contains('drawer-open');
+                document.body.classList.toggle('drawer-open', isOpen);
+                if (isOpen && state.audioEnabled) playTick(600);
+            }
+
+            sponsorBtn.addEventListener('click', () => toggleDrawer(true));
+            closeBtn.addEventListener('click', () => toggleDrawer(false));
+            overlay.addEventListener('click', () => toggleDrawer(false));
+            document.addEventListener('keydown', e => {
+                if (e.key === 'Escape' && document.body.classList.contains('drawer-open')) toggleDrawer(false);
+            });
+
+            // Custom Cursor
+            if (!state.isMobile && matchMedia('(pointer:fine)').matches) {
+                const cursor = document.querySelector('.custom-cursor');
+                const dot = document.querySelector('.cursor-dot');
+                const ring = document.querySelector('.cursor-ring');
+                
+                let mx = window.innerWidth/2, my = window.innerHeight/2;
+                let cx = mx, cy = my;
+
+                window.addEventListener('mousemove', e => {
+                    mx = e.clientX;
+                    my = e.clientY;
+                    dot.style.transform = `translate(calc(${mx}px - 50%), calc(${my}px - 50%))`;
+                });
+
+                // Smooth follow for ring
+                function loopCursor() {
+                    cx = lerp(cx, mx, 0.2);
+                    cy = lerp(cy, my, 0.2);
+                    ring.style.transform = `translate(calc(${cx}px - 50%), calc(${cy}px - 50%))`;
+                    requestAnimationFrame(loopCursor);
+                }
+                loopCursor();
+
+                // Hover effects
+                document.querySelectorAll('.hover-target, a, button, .rail-node').forEach(el => {
+                    el.addEventListener('mouseenter', () => cursor.classList.add('cursor-hover'));
+                    el.addEventListener('mouseleave', () => cursor.classList.remove('cursor-hover'));
+                    
+                    // UI hover sound
+                    el.addEventListener('mouseenter', () => {
+                        if (state.audioEnabled) playTick(800, 0.02);
+                    });
+                });
+            }
+        }
+
+        // Simple procedural click/tick generator
+        function playTick(freq = 300, vol = 0.05) {
+            if (!state.audioCtx) return;
+            if (state.audioCtx.state === 'suspended') state.audioCtx.resume();
+            
+            const osc = state.audioCtx.createOscillator();
+            const gain = state.audioCtx.createGain();
+            
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, state.audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(0.01, state.audioCtx.currentTime + 0.05);
+            
+            gain.gain.setValueAtTime(vol, state.audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, state.audioCtx.currentTime + 0.05);
+            
+            osc.connect(gain);
+            gain.connect(state.audioCtx.destination);
+            
+            osc.start();
+            osc.stop(state.audioCtx.currentTime + 0.05);
+        }
+
+        // Boot sequence
+        window.addEventListener('load', () => {
+            initDOM();
+            setupInteractions();
+            window.addEventListener('scroll', onScroll, { passive: true });
+            window.addEventListener('resize', onResize);
+            onResize();
+            onScroll();
+            // Force initial render state
+            state.targetScrollY = window.scrollY;
+            state.scrollY = window.scrollY;
+            renderLoop();
+        });
+
+    </script>
+</body>
+</html>
